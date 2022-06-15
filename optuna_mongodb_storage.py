@@ -131,8 +131,9 @@ class MongoDBStorage(BaseStorage):
         ]
         return study_summaries
 
-    def _convert_frozen_trial_to_record(self, trial: FrozenTrial) -> Dict[str, Any]:
+    def _convert_frozen_trial_to_record(self, study_id: int, trial: FrozenTrial) -> Dict[str, Any]:
         return {
+            "study_id": study_id,
             "trial_id": trial._trial_id,
             "number": trial.number,
             "state": _trial_state_to_str_map[trial.state],
@@ -151,6 +152,7 @@ class MongoDBStorage(BaseStorage):
     ) -> int:
         if template_trial is None:
             default_trial_record = {
+                "study_id": study_id,
                 "trial_id": -1,
                 "number": -1,
                 "state": _trial_state_to_str_map[TrialState.RUNNING],
@@ -164,7 +166,7 @@ class MongoDBStorage(BaseStorage):
                 "datetime_complete": None,
             }
         else:
-            default_trial_record = self._convert_frozen_trial_to_record(template_trial)
+            default_trial_record = self._convert_frozen_trial_to_record(study_id, template_trial)
 
         self._check_study_id(study_id)
         trial_id = self._trial_table.count_documents({})
@@ -251,7 +253,11 @@ class MongoDBStorage(BaseStorage):
         deepcopy: bool = True,
         states: Optional[Container[TrialState]] = None,
     ) -> List[FrozenTrial]:
-        pass
+    
+        trial_records = self._trial_table.find({"study_id": study_id})
+        trials = [self._convert_record_to_frozen_trial(t) for t in trial_records]
+        return trials
+
 
     def read_trials_from_remote_storage(self, study_id: int) -> None:
         pass
