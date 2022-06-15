@@ -1,4 +1,5 @@
 from optuna.distributions import FloatDistribution
+from optuna.trial import TrialState
 
 from optuna_mongodb_storage import MongoDBStorage
 
@@ -35,11 +36,23 @@ def test_set_trial_param():
     assert trial.distributions == {"foo": FloatDistribution(low=0.0, high=1.0)}
 
 
+def test_set_trial_state_values():
+    storage = MongoDBStorage()
+    study_id = storage.create_new_study()
+    trial_id = storage.create_new_trial(study_id)
+    storage.set_trial_param(trial_id, "foo", 0.1, FloatDistribution(low=0.0, high=1.0))
+    storage.set_trial_state_values(trial_id, TrialState.COMPLETE, values=[0.5])
+    trial = storage.get_trial(trial_id)
+    assert trial.state == TrialState.COMPLETE
+    assert trial.value == 0.5
+
+
 def main():
     clean_up()
     test_create_new_studies()
     test_create_new_trials()
     test_set_trial_param()
+    test_set_trial_state_values()
 
 
 if __name__ == "__main__":
