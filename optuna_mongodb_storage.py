@@ -198,7 +198,7 @@ class MongoDBStorage(BaseStorage):
 
         self._trial_table.insert_one(default_trial_record)
 
-        return default_trial_record
+        return trial_id
 
     def set_trial_param(
         self,
@@ -238,6 +238,15 @@ class MongoDBStorage(BaseStorage):
         return self._trial_table.find_one({"trial_id": trial_id})
 
     def _convert_record_to_frozen_trial(self, trial_record: Dict[str, Any]) -> FrozenTrial:
+        value: Optional[float]
+        values: Optional[List[float]]
+        if len(trial_record["values"]) == 1:
+            value = trial_record["values"][0]
+            values = None
+        else:
+            value = None
+            values = trial_record["values"]
+
         return FrozenTrial(
             trial_id=trial_record["trial_id"],
             number=trial_record["number"],
@@ -246,7 +255,8 @@ class MongoDBStorage(BaseStorage):
             distributions=trial_record["distributions"],
             user_attrs=trial_record["user_attrs"],
             system_attrs=trial_record["system_attrs"],
-            values=trial_record["values"],
+            value=value,
+            values=values,
             intermediate_values=trial_record["intermediate_values"],
             datetime_start=trial_record["datetime_start"],
             datetime_complete=trial_record["datetime_complete"]
