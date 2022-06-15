@@ -23,6 +23,19 @@ def _study_direction_to_string(study_direction: StudyDirection) -> str:
         return "not_set"
 
 
+def _trial_state_to_string(trial_state: TrialState) -> str:
+    if trial_state == TrialState.RUNNING:
+        return "running"
+    elif trial_state == TrialState.COMPLETE:
+        return "complete"
+    elif trial_state == TrialState.PRUNED:
+        return "pruned"
+    elif trial_state == TrialState.FAIL:
+        return "fail"
+    elif trial_state == TrialState.WAITING:
+        return "waiting"
+
+
 class MongoDBStorage(BaseStorage):
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
         self._client = MongoClient(host=host, port=port)
@@ -117,10 +130,52 @@ class MongoDBStorage(BaseStorage):
             study_record) for study_record in study_records]
         return study_summaries
 
+    def _convert_frozen_trial_to_record(trial: FrozenTrial) -> Dict[str, Any]:
+        return {
+            "trial_id": trial._trial_id,
+            "number": trial.number,
+            "state": _trial_state_to_string(trial.state),
+            "params": trial.params,
+            "distributions": trial.distributions,
+            "user_attrs": trial.user_attrs,
+            "system_attrs": trial.system_attrs,
+            "values": trial.values,
+            "intermediate_values": trial.intermediate_values,
+            "datetime_start": trial.datetime_start,
+            "datetime_complete": trial.datetime_complete
+        }
+
     def create_new_trial(
         self, study_id: int, template_trial: Optional[FrozenTrial] = None
     ) -> int:
-        pass
+        if template_trial is None:
+            default_trial_record = {
+                "trial_id": -1,
+                "number": -1,
+                "state": _trial_state_to_string(TrialState.RUNNING),
+                "params": {},
+                "distributions": {},
+                "user_attrs": {},
+                "system_attrs": {},
+                "values": {},
+                "intermediate_values": {},
+                "datetime_start": datetime.datetime.now(),
+                "datetime_complete": None,
+            }
+        else:
+            default_trial_record = self._convert_frozen_trial_to_record(
+                template_trial)
+
+        self._check_study_id(study_id)
+        trial_id = self._trial_table.count_documents({})
+        trial_number = self._trial_table.count_documents(
+            {"study_id": study_id})
+        default_trial_record["trial_id"] = trial_id
+        default_trial_record["number"] = trial_number
+
+        self._trial_table.insert_one(default_trial_record)
+
+        return default_trial_record
 
     def set_trial_param(
         self,

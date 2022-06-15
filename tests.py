@@ -12,9 +12,15 @@ def test_create_new_studies():
     assert len(studies) == 1
     storage.delete_study(study_id)
 
+def test_create_new_trials():
+    storage = MongoDBStorage()
+    study_id = storage.create_new_study()
+    trial_id = storage.create_new_trial(study_id)    
+
 def main():
     clean_up()
     test_create_new_studies()
+    test_create_new_trials()
 
 if __name__ == "__main__":
     main()
