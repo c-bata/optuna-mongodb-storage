@@ -14,48 +14,20 @@ from pymongo import MongoClient
 _logger = optuna.logging.get_logger(__name__)
 
 
-def _study_direction_to_string(study_direction: StudyDirection) -> str:
-    if study_direction == StudyDirection.MAXIMIZE:
-        return "maximize"
-    elif study_direction == StudyDirection.MINIMIZE:
-        return "minimize"
-    else:
-        return "not_set"
-
-
-def _string_to_study_direction(direction: str) -> StudyDirection:
-    if direction == "maximize":
-        return StudyDirection.MAXIMIZE
-    elif direction == "minimize":
-        return StudyDirection.MINIMIZE
-    elif direction == "not_set":
-        return StudyDirection.NOT_SET
-
-
-def _trial_state_to_string(trial_state: TrialState) -> str:
-    if trial_state == TrialState.RUNNING:
-        return "running"
-    elif trial_state == TrialState.COMPLETE:
-        return "complete"
-    elif trial_state == TrialState.PRUNED:
-        return "pruned"
-    elif trial_state == TrialState.FAIL:
-        return "fail"
-    elif trial_state == TrialState.WAITING:
-        return "waiting"
-
-
-def _string_to_trial_state(state: str) -> TrialState:
-    if state == "running":
-        return TrialState.RUNNING
-    elif state == "complete":
-        return TrialState.COMPLETE
-    elif state == "pruned":
-        return TrialState.PRUNED
-    elif state == "fail":
-        return TrialState.FAIL
-    elif state == "waiting":
-        return TrialState.WAITING
+_str_to_study_direction_map: Dict[str, StudyDirection] = {
+    "maximize": StudyDirection.MAXIMIZE,
+    "minimize": StudyDirection.MINIMIZE,
+    "not_set": StudyDirection.NOT_SET,
+}
+_study_direction_to_str_map = {v: k for k, v in _str_to_study_direction_map.items()}
+_str_to_trial_state_map: Dict[str, TrialState] = {
+    "running": TrialState.RUNNING,
+    "complete": TrialState.COMPLETE,
+    "pruned": TrialState.PRUNED,
+    "fail": TrialState.FAIL,
+    "waiting": TrialState.WAITING,
+}
+_trial_state_to_str_map = {v: k for k, v in _str_to_trial_state_map.items()}
 
 
 class MongoDBStorage(BaseStorage):
@@ -77,7 +49,7 @@ class MongoDBStorage(BaseStorage):
 
         default_study_record = {
             "study_name": study_name,
-            "directions": [_study_direction_to_string(StudyDirection.NOT_SET)],
+            "directions": [_study_direction_to_str_map[StudyDirection.NOT_SET]],
             "user_attrs": {},
             "system_attrs": {},
             "study_id": study_id,
@@ -142,8 +114,7 @@ class MongoDBStorage(BaseStorage):
             n_trials=0,
             datetime_start=study_record["datetime_start"],
             study_id=study_record["study_id"],
-            directions=[_string_to_study_direction(
-                d) for d in study_record["directions"]]
+            directions=[_str_to_study_direction_map[d] for d in study_record["directions"]]
         )
 
     def get_all_study_summaries(self, include_best_trial: bool) -> List[StudySummary]:
@@ -157,7 +128,7 @@ class MongoDBStorage(BaseStorage):
         return {
             "trial_id": trial._trial_id,
             "number": trial.number,
-            "state": _trial_state_to_string(trial.state),
+            "state": _trial_state_to_str_map[trial.state],
             "params": trial.params,
             "distributions": trial.distributions,
             "user_attrs": trial.user_attrs,
@@ -175,7 +146,7 @@ class MongoDBStorage(BaseStorage):
             default_trial_record = {
                 "trial_id": -1,
                 "number": -1,
-                "state": _trial_state_to_string(TrialState.RUNNING),
+                "state": _trial_state_to_str_map[TrialState.RUNNING],
                 "params": {},
                 "distributions": {},
                 "user_attrs": {},
@@ -250,7 +221,7 @@ class MongoDBStorage(BaseStorage):
         return FrozenTrial(
             trial_id=trial_record["trial_id"],
             number=trial_record["number"],
-            state=_string_to_trial_state(trial_record["state"]),
+            state=_str_to_trial_state_map[trial_record["state"]],
             params=trial_record["params"],
             distributions=trial_record["distributions"],
             user_attrs=trial_record["user_attrs"],
