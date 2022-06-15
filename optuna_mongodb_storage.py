@@ -23,6 +23,15 @@ def _study_direction_to_string(study_direction: StudyDirection) -> str:
         return "not_set"
 
 
+def _string_to_study_direction(direction: str) -> StudyDirection:
+    if direction == "maximize":
+        return StudyDirection.MAXIMIZE
+    elif direction == "minimize":
+        return StudyDirection.MINIMIZE
+    elif direction == "not_set":
+        return StudyDirection.NOT_SET
+
+
 def _trial_state_to_string(trial_state: TrialState) -> str:
     if trial_state == TrialState.RUNNING:
         return "running"
@@ -34,6 +43,19 @@ def _trial_state_to_string(trial_state: TrialState) -> str:
         return "fail"
     elif trial_state == TrialState.WAITING:
         return "waiting"
+
+
+def _string_to_trial_state(state: str) -> TrialState:
+    if state == "running":
+        return TrialState.RUNNING
+    elif state == "complete":
+        return TrialState.COMPLETE
+    elif state == "pruned":
+        return TrialState.PRUNED
+    elif state == "fail":
+        return TrialState.FAIL
+    elif state == "waiting":
+        return TrialState.WAITING
 
 
 class MongoDBStorage(BaseStorage):
@@ -120,7 +142,8 @@ class MongoDBStorage(BaseStorage):
             n_trials=0,
             datetime_start=study_record["datetime_start"],
             study_id=study_record["study_id"],
-            directions=study_record["directions"]
+            directions=[_string_to_study_direction(
+                d) for d in study_record["directions"]]
         )
 
     def get_all_study_summaries(self, include_best_trial: bool) -> List[StudySummary]:
@@ -130,7 +153,7 @@ class MongoDBStorage(BaseStorage):
             study_record) for study_record in study_records]
         return study_summaries
 
-    def _convert_frozen_trial_to_record(trial: FrozenTrial) -> Dict[str, Any]:
+    def _convert_frozen_trial_to_record(self, trial: FrozenTrial) -> Dict[str, Any]:
         return {
             "trial_id": trial._trial_id,
             "number": trial.number,
@@ -207,8 +230,32 @@ class MongoDBStorage(BaseStorage):
     def set_trial_system_attr(self, trial_id: int, key: str, value: Any) -> None:
         pass
 
+    def _check_trial_id(self, trial_id: int) -> None:
+        if self._trial_table.count_documents({"trial_id": trial_id}) != 1:
+            raise KeyError("trial_id {} does not exist.".format(trial_id))
+
+    def _get_trial_record(self, trial_id: int) -> Dict[str, Any]:
+        return self._trial_table.find_one({"trial_id": trial_id})
+
+    def _convert_record_to_frozen_trial(self, trial_record: Dict[str, Any]) -> FrozenTrial:
+        return FrozenTrial(
+            trial_id=trial_record["trial_id"],
+            number=trial_record["number"],
+            state=_string_to_trial_state(trial_record["state"]),
+            params=trial_record["params"],
+            distributions=trial_record["distributions"],
+            user_attrs=trial_record["user_attrs"],
+            system_attrs=trial_record["system_attrs"],
+            values=trial_record["values"],
+            intermediate_values=trial_record["intermediate_values"],
+            datetime_start=trial_record["datetime_start"],
+            datetime_complete=trial_record["datetime_complete"]
+        )
+
     def get_trial(self, trial_id: int) -> FrozenTrial:
-        pass
+        self._check_trial_id(trial_id)
+        trial_record = self._get_trial_record(trial_id)
+        return self._convert_record_to_frozen_trial(trial_record)
 
     def get_all_trials(
         self,

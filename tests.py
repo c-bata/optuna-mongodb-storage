@@ -15,7 +15,9 @@ def test_create_new_studies():
 def test_create_new_trials():
     storage = MongoDBStorage()
     study_id = storage.create_new_study()
-    trial_id = storage.create_new_trial(study_id)    
+    trial_id = storage.create_new_trial(study_id)
+    assert 1 == storage._trial_table.count_documents({})
+    trial = storage.get_trial(trial_id)
 
 def main():
     clean_up()
