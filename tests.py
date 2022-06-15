@@ -12,5 +12,5 @@ def main():
     test_create_new_studies()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
