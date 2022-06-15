@@ -38,14 +38,16 @@ class MongoDBStorage(BaseStorage):
         self._trial_table = self._mongodb.trials
 
     def create_new_study(self, study_name: Optional[str] = None) -> int:
-        if study_name is not None and self._study_table.count_documents({"study_name": study_name}) != 0:
+        if (
+            study_name is not None
+            and self._study_table.count_documents({"study_name": study_name}) != 0
+        ):
             raise exceptions.DuplicatedStudyError
 
         study_id = self._study_table.count_documents({})
 
         if study_name is None:
-            study_name = "{}{:010d}".format(
-                DEFAULT_STUDY_NAME_PREFIX, study_id)
+            study_name = "{}{:010d}".format(DEFAULT_STUDY_NAME_PREFIX, study_id)
 
         default_study_record = {
             "study_name": study_name,
@@ -54,20 +56,18 @@ class MongoDBStorage(BaseStorage):
             "system_attrs": {},
             "study_id": study_id,
             "deleted": False,
-            "datetime_start": datetime.datetime.now()
+            "datetime_start": datetime.datetime.now(),
         }
 
         self._study_table.insert_one(default_study_record)
         # self._set_study_record(study_id, default_study_record)
 
-        _logger.info(
-            "A new study created in MongoDB with name: {}".format(study_name))
+        _logger.info("A new study created in MongoDB with name: {}".format(study_name))
 
         return study_id
 
     def _set_study_record(self, study_id: int, study_record) -> None:
-        self._study_table.replace_one(
-            {"study_id": study_id}, study_record, upsert=True)
+        self._study_table.replace_one({"study_id": study_id}, study_record, upsert=True)
 
     def _check_study_id(self, study_id: int) -> None:
         if self._study_table.count_documents({"study_id": study_id}) != 1:
@@ -75,8 +75,9 @@ class MongoDBStorage(BaseStorage):
 
     def delete_study(self, study_id: int) -> None:
         self._check_study_id(study_id)
-        self._study_table.update_one({"study_id": study_id}, {
-                                     "$set": {"deleted": True}})
+        self._study_table.update_one(
+            {"study_id": study_id}, {"$set": {"deleted": True}}
+        )
 
     def set_study_user_attr(self, study_id: int, key: str, value: Any) -> None:
         pass
@@ -104,7 +105,9 @@ class MongoDBStorage(BaseStorage):
     def get_study_system_attrs(self, study_id: int) -> Dict[str, Any]:
         pass
 
-    def _convert_study_record_to_summary(self, study_record: Dict[str, Any]) -> StudySummary:
+    def _convert_study_record_to_summary(
+        self, study_record: Dict[str, Any]
+    ) -> StudySummary:
         return StudySummary(
             study_name=study_record["study_name"],
             direction=None,
@@ -114,14 +117,18 @@ class MongoDBStorage(BaseStorage):
             n_trials=0,
             datetime_start=study_record["datetime_start"],
             study_id=study_record["study_id"],
-            directions=[_str_to_study_direction_map[d] for d in study_record["directions"]]
+            directions=[
+                _str_to_study_direction_map[d] for d in study_record["directions"]
+            ],
         )
 
     def get_all_study_summaries(self, include_best_trial: bool) -> List[StudySummary]:
         # TODO: n_trials, best_trial
         study_records = self._study_table.find({"deleted": False})
-        study_summaries = [self._convert_study_record_to_summary(
-            study_record) for study_record in study_records]
+        study_summaries = [
+            self._convert_study_record_to_summary(study_record)
+            for study_record in study_records
+        ]
         return study_summaries
 
     def _convert_frozen_trial_to_record(self, trial: FrozenTrial) -> Dict[str, Any]:
@@ -136,7 +143,7 @@ class MongoDBStorage(BaseStorage):
             "values": trial.values,
             "intermediate_values": trial.intermediate_values,
             "datetime_start": trial.datetime_start,
-            "datetime_complete": trial.datetime_complete
+            "datetime_complete": trial.datetime_complete,
         }
 
     def create_new_trial(
@@ -157,13 +164,11 @@ class MongoDBStorage(BaseStorage):
                 "datetime_complete": None,
             }
         else:
-            default_trial_record = self._convert_frozen_trial_to_record(
-                template_trial)
+            default_trial_record = self._convert_frozen_trial_to_record(template_trial)
 
         self._check_study_id(study_id)
         trial_id = self._trial_table.count_documents({})
-        trial_number = self._trial_table.count_documents(
-            {"study_id": study_id})
+        trial_number = self._trial_table.count_documents({"study_id": study_id})
         default_trial_record["trial_id"] = trial_id
         default_trial_record["number"] = trial_number
 
@@ -208,7 +213,9 @@ class MongoDBStorage(BaseStorage):
     def _get_trial_record(self, trial_id: int) -> Dict[str, Any]:
         return self._trial_table.find_one({"trial_id": trial_id})
 
-    def _convert_record_to_frozen_trial(self, trial_record: Dict[str, Any]) -> FrozenTrial:
+    def _convert_record_to_frozen_trial(
+        self, trial_record: Dict[str, Any]
+    ) -> FrozenTrial:
         value: Optional[float]
         values: Optional[List[float]]
         if len(trial_record["values"]) == 1:
@@ -230,7 +237,7 @@ class MongoDBStorage(BaseStorage):
             values=values,
             intermediate_values=trial_record["intermediate_values"],
             datetime_start=trial_record["datetime_start"],
-            datetime_complete=trial_record["datetime_complete"]
+            datetime_complete=trial_record["datetime_complete"],
         )
 
     def get_trial(self, trial_id: int) -> FrozenTrial:

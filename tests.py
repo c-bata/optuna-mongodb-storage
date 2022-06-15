@@ -1,9 +1,11 @@
 from optuna_mongodb_storage import MongoDBStorage
 
+
 def clean_up():
     storage = MongoDBStorage()
     storage._study_table.delete_many({})
     storage._trial_table.delete_many({})
+
 
 def test_create_new_studies():
     storage = MongoDBStorage()
@@ -12,6 +14,7 @@ def test_create_new_studies():
     assert len(studies) == 1
     storage.delete_study(study_id)
 
+
 def test_create_new_trials():
     storage = MongoDBStorage()
     study_id = storage.create_new_study()
@@ -19,10 +22,12 @@ def test_create_new_trials():
     assert 1 == storage._trial_table.count_documents({})
     trial = storage.get_trial(trial_id)
 
+
 def main():
     clean_up()
     test_create_new_studies()
     test_create_new_trials()
+
 
 if __name__ == "__main__":
     main()
