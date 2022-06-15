@@ -3,7 +3,11 @@ from typing import Optional, Container, List, Any, Sequence, Dict
 
 import optuna
 from optuna import exceptions
-from optuna.distributions import BaseDistribution, distribution_to_json, json_to_distribution
+from optuna.distributions import (
+    BaseDistribution,
+    distribution_to_json,
+    json_to_distribution,
+)
 from optuna.storages import BaseStorage
 from optuna.storages._base import DEFAULT_STUDY_NAME_PREFIX
 from optuna.study import StudySummary, StudyDirection
@@ -60,14 +64,10 @@ class MongoDBStorage(BaseStorage):
         }
 
         self._study_table.insert_one(default_study_record)
-        # self._set_study_record(study_id, default_study_record)
 
         _logger.info("A new study created in MongoDB with name: {}".format(study_name))
 
         return study_id
-
-    def _set_study_record(self, study_id: int, study_record) -> None:
-        self._study_table.replace_one({"study_id": study_id}, study_record, upsert=True)
 
     def _check_study_id(self, study_id: int) -> None:
         if self._study_table.count_documents({"study_id": study_id}) != 1:
@@ -217,7 +217,19 @@ class MongoDBStorage(BaseStorage):
     def set_trial_state_values(
         self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
     ) -> bool:
-        pass
+
+        self._check_study_id(trial_id)
+        trial_record = self._get_trial_record(trial_id)
+        current_state = _str_to_trial_state_map[trial_record["state"]]
+        self.check_trial_is_updatable(trial_id, current_state)
+
+        if current_state == state and state == TrialState.RUNNING:
+            return False
+        else:
+            trial_record["state"] = _trial_state_to_str_map[state]
+            trial_record["values"] = values
+            self._trial_table.replace_one({"trial_id": trial_id}, trial_record)
+            return True
 
     def set_trial_intermediate_value(
         self, trial_id: int, step: int, intermediate_value: float
@@ -254,7 +266,10 @@ class MongoDBStorage(BaseStorage):
             number=trial_record["number"],
             state=_str_to_trial_state_map[trial_record["state"]],
             params=trial_record["params"],
-            distributions={k: json_to_distribution(v) for k, v in trial_record["distributions"].items()},
+            distributions={
+                k: json_to_distribution(v)
+                for k, v in trial_record["distributions"].items()
+            },
             user_attrs=trial_record["user_attrs"],
             system_attrs=trial_record["system_attrs"],
             value=value,

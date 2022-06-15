@@ -50,8 +50,11 @@ def test_set_trial_state_values():
 def main():
     clean_up()
     test_create_new_studies()
+    clean_up()
     test_create_new_trials()
+    clean_up()
     test_set_trial_param()
+    clean_up()
     test_set_trial_state_values()
 
 
