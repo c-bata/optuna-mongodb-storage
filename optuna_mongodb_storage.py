@@ -14,6 +14,15 @@ from pymongo import MongoClient
 _logger = optuna.logging.get_logger(__name__)
 
 
+def _study_direction_to_string(study_direction: StudyDirection) -> str:
+    if study_direction == StudyDirection.MAXIMIZE:
+        return "maximize"
+    elif study_direction == StudyDirection.MINIMIZE:
+        return "minimize"
+    else:
+        return "not_set"
+
+
 class MongoDBStorage(BaseStorage):
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
         self._client = MongoClient(host=host, port=port)
@@ -28,11 +37,12 @@ class MongoDBStorage(BaseStorage):
         study_id = self._study_table.count_documents({})
 
         if study_name is None:
-            study_name = "{}{:010d}".format(DEFAULT_STUDY_NAME_PREFIX, study_id)
+            study_name = "{}{:010d}".format(
+                DEFAULT_STUDY_NAME_PREFIX, study_id)
 
         default_study_record = {
             "study_name": study_name,
-            "directions": [StudyDirection.NOT_SET],
+            "directions": [_study_direction_to_string(StudyDirection.NOT_SET)],
             "user_attrs": {},
             "system_attrs": {},
             "study_id": study_id,
@@ -40,17 +50,26 @@ class MongoDBStorage(BaseStorage):
             "datetime_start": datetime.datetime.now()
         }
 
-        self._set_study_record(study_id, default_study_record)
+        self._study_table.insert_one(default_study_record)
+        # self._set_study_record(study_id, default_study_record)
 
-        _logger.info("A new study created in MongoDB with name: {}".format(study_name))
+        _logger.info(
+            "A new study created in MongoDB with name: {}".format(study_name))
 
         return study_id
 
     def _set_study_record(self, study_id: int, study_record) -> None:
-        self._study_table.replace_one({"study_id", study_id}, study_record, upsert=True)
+        self._study_table.replace_one(
+            {"study_id": study_id}, study_record, upsert=True)
+
+    def _check_study_id(self, study_id: int) -> None:
+        if self._study_table.count_documents({"study_id": study_id}) != 1:
+            raise KeyError("study_id {} does not exist.".format(study_id))
 
     def delete_study(self, study_id: int) -> None:
-        pass
+        self._check_study_id(study_id)
+        self._study_table.update_one({"study_id": study_id}, {
+                                     "$set": {"deleted": True}})
 
     def set_study_user_attr(self, study_id: int, key: str, value: Any) -> None:
         pass
