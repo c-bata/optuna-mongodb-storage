@@ -13,6 +13,7 @@ def clean_up():
 def test_create_new_studies():
     storage = MongoDBStorage()
     study_id = storage.create_new_study()
+    assert study_id is not None
     studies = storage.get_all_study_summaries(include_best_trial=False)
     assert len(studies) == 1
     storage.delete_study(study_id)

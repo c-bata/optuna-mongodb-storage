@@ -113,7 +113,10 @@ class MongoDBStorage(BaseStorage):
         return self._get_study_record_field(study_id, "system_attrs")
 
     def get_study_id_from_name(self, study_name: str) -> int:
-        pass
+        res = self._study_table.find_one({"study_name": study_name})
+        if res is None:
+            raise KeyError("No such study {}.", format(study_name))
+        return res["study_id"]
 
     def _convert_study_record_to_summary(
         self, study_record: Dict[str, Any]
@@ -172,7 +175,7 @@ class MongoDBStorage(BaseStorage):
                 "distributions": {},
                 "user_attrs": {},
                 "system_attrs": {},
-                "values": {},
+                "values": [],
                 "intermediate_values": {},
                 "datetime_start": datetime.datetime.now(),
                 "datetime_complete": None,
@@ -264,7 +267,10 @@ class MongoDBStorage(BaseStorage):
     ) -> FrozenTrial:
         value: Optional[float]
         values: Optional[List[float]]
-        if len(trial_record["values"]) == 1:
+        if trial_record["values"] is None:
+            value = None
+            values = None
+        elif len(trial_record["values"]) == 1:
             value = trial_record["values"][0]
             values = None
         else:

@@ -1,9 +1,7 @@
 import optuna
+from optuna.samplers import RandomSampler
 
 from optuna_mongodb_storage import MongoDBStorage
-
-
-# TODO: implement get_best_trial() and set_trial_state_values()
 
 
 def objective(trial):
@@ -13,8 +11,11 @@ def objective(trial):
 
 
 if __name__ == "__main__":
-    study = optuna.create_study(
-        storage=MongoDBStorage()
-    )
-    study.optimize(objective, n_trials=10)
+    storage = MongoDBStorage()
+    storage._study_table.delete_many({})
+    storage._trial_table.delete_many({})
+
+    study = optuna.create_study(storage=storage, sampler=RandomSampler())
+
+    study.optimize(objective, n_trials=1)
     print("Best value: {} (params: {})\n".format(study.best_value, study.best_params))
