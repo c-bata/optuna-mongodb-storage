@@ -90,19 +90,29 @@ class MongoDBStorage(BaseStorage):
     ) -> None:
         pass
 
-    def get_study_id_from_name(self, study_name: str) -> int:
-        pass
+    def _get_study_record(self, study_id: int) -> Dict[str, Any]:
+        return self._study_table.find_one({"study_id": study_id})
+
+    def _get_study_record_field(self, study_id: int, field: str) -> Any:
+        self._check_study_id(study_id)
+        return self._get_study_record(study_id)[field]
 
     def get_study_name_from_id(self, study_id: int) -> str:
-        pass
+        return self._get_study_record_field(study_id, "study_name")
 
     def get_study_directions(self, study_id: int) -> List[StudyDirection]:
-        pass
+        return [
+            _str_to_study_direction_map[d]
+            for d in self._get_study_record_field(study_id, "directions")
+        ]
 
     def get_study_user_attrs(self, study_id: int) -> Dict[str, Any]:
-        pass
+        return self._get_study_record_field(study_id, "user_attrs")
 
     def get_study_system_attrs(self, study_id: int) -> Dict[str, Any]:
+        return self._get_study_record_field(study_id, "system_attrs")
+
+    def get_study_id_from_name(self, study_name: str) -> int:
         pass
 
     def _convert_study_record_to_summary(
