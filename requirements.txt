@@ -1,2 +1,5 @@
 optuna==3.0.0b1
 pymongo
+sklearn
+torch
+torchvision

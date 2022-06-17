@@ -251,10 +251,12 @@ class MongoDBStorage(BaseStorage):
         return trial_record["trial_id"]
 
     def get_trial_number_from_id(self, trial_id: int) -> int:
-        raise NotImplementedError
+        self._check_trial_id(trial_id)
+        return self._get_trial_record_field(trial_id, "number")
 
     def get_trial_param(self, trial_id: int, param_name: str) -> float:
-        raise NotImplementedError
+        self._check_trial_id(trial_id)
+        return self._get_trial_record_field(trial_id, "param")
 
     def set_trial_state_values(
         self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
@@ -276,7 +278,13 @@ class MongoDBStorage(BaseStorage):
     def set_trial_intermediate_value(
         self, trial_id: int, step: int, intermediate_value: float
     ) -> None:
-        raise NotImplementedError
+        self._check_trial_id(trial_id)
+        trial_record = self._get_trial_record(trial_id)
+        self.check_trial_is_updatable(
+            trial_id, _str_to_trial_state_map[trial_record["state"]]
+        )
+        trial_record["intermediate_values"][str(step)] = intermediate_value
+        self._trial_table.replace_one({"trial_id": trial_id}, trial_record)
 
     def set_trial_user_attr(self, trial_id: int, key: str, value: Any) -> None:
         raise NotImplementedError
@@ -290,6 +298,9 @@ class MongoDBStorage(BaseStorage):
 
     def _get_trial_record(self, trial_id: int) -> Dict[str, Any]:
         return self._trial_table.find_one({"trial_id": trial_id})
+
+    def _get_trial_record_field(self, trial_id: int, field: str) -> Any:
+        return self._get_trial_record(trial_id)[field]
 
     def _convert_record_to_frozen_trial(
         self, trial_record: Dict[str, Any]
@@ -319,7 +330,10 @@ class MongoDBStorage(BaseStorage):
             system_attrs=trial_record["system_attrs"],
             value=value,
             values=values,
-            intermediate_values=trial_record["intermediate_values"],
+            intermediate_values={
+                int(key): value
+                for key, value in trial_record["intermediate_values"].items()
+            },
             datetime_start=trial_record["datetime_start"],
             datetime_complete=trial_record["datetime_complete"],
         )
@@ -357,22 +371,26 @@ class MongoDBStorage(BaseStorage):
         raise NotImplementedError
 
     def get_best_trial(self, study_id: int) -> FrozenTrial:
-        raise NotImplementedError
+        return super().get_best_trial(study_id)
 
     def get_trial_params(self, trial_id: int) -> Dict[str, Any]:
-        raise NotImplementedError
+        self._check_trial_id(trial_id)
+        return self._get_trial_record_field(trial_id, "params")
 
     def get_trial_user_attrs(self, trial_id: int) -> Dict[str, Any]:
-        raise NotImplementedError
+        self._check_trial_id(trial_id)
+        return self._get_trial_record_field(trial_id, "user_attrs")
 
     def get_trial_system_attrs(self, trial_id: int) -> Dict[str, Any]:
-        raise NotImplementedError
+        self._check_trial_id(trial_id)
+        return self._get_trial_record_field(trial_id, "system_attrs")
 
     def read_trials_from_remote_storage(self, study_id: int) -> None:
-        raise NotImplementedError
+        self._check_study_id(study_id)
 
     def remove_session(self) -> None:
-        raise NotImplementedError
+        pass
+        # raise NotImplementedError
 
     def check_trial_is_updatable(self, trial_id: int, trial_state: TrialState) -> None:
         if trial_state.is_finished():
@@ -384,4 +402,4 @@ class MongoDBStorage(BaseStorage):
             )
 
     def is_heartbeat_enabled(self) -> bool:
-        raise NotImplementedError
+        return super().is_heartbeat_enabled()
