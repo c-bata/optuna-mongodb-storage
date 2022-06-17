@@ -129,9 +129,7 @@ if __name__ == "__main__":
     storage._study_table.delete_many({})
     storage._trial_table.delete_many({})
 
-    study = optuna.create_study(
-        direction="maximize", storage=storage, sampler=RandomSampler()
-    )
+    study = optuna.create_study(direction="maximize", storage=storage)
     study.optimize(objective, n_trials=100, timeout=600)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])

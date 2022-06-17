@@ -231,7 +231,9 @@ class MongoDBStorage(BaseStorage):
             trial_id, _str_to_trial_state_map[trial_record["state"]]
         )
 
-        trial_record["params"][param_name] = param_value_internal
+        trial_record["params"][param_name] = distribution.to_external_repr(
+            param_value_internal
+        )
         trial_record["distributions"][param_name] = distribution_to_json(distribution)
 
         self._trial_table.replace_one({"trial_id": trial_id}, trial_record)
