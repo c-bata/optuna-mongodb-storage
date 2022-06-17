@@ -225,7 +225,16 @@ class MongoDBStorage(BaseStorage):
     def get_trial_id_from_study_id_trial_number(
         self, study_id: int, trial_number: int
     ) -> int:
-        pass
+        trial_record = self._trial_table.find_one(
+            {"$and": [{"study_id": study_id}, {"number": trial_number}]}
+        )
+        if trial_record is None:
+            raise KeyError(
+                "No trial with trial number {} exists in study with study_id {}.".format(
+                    trial_number, study_id
+                )
+            )
+        return trial_record["trial_id"]
 
     def set_trial_state_values(
         self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
@@ -309,12 +318,14 @@ class MongoDBStorage(BaseStorage):
 
         if states is None:
             trial_records = self._trial_table.find({"study_id": study_id})
-        else :
+        else:
             if len(states) == 1:
                 cond = {"state": _trial_state_to_str_map[states[0]]}
             else:
                 cond = {"$or": [{"state": _trial_state_to_str_map[s]} for s in states]}
-            trial_records = self._trial_table.find({"$and": [{"study_id": study_id}, cond]})
+            trial_records = self._trial_table.find(
+                {"$and": [{"study_id": study_id}, cond]}
+            )
         trials = [self._convert_record_to_frozen_trial(t) for t in trial_records]
         return trials
 

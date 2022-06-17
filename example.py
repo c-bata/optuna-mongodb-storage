@@ -14,7 +14,9 @@ if __name__ == "__main__":
     storage._study_table.delete_many({})
     storage._trial_table.delete_many({})
 
-    study = optuna.create_study(storage=storage, sampler=RandomSampler())
+    study = optuna.create_study(storage=storage)
 
-    study.optimize(objective, n_trials=2)
+    # study = optuna.create_study()
+
+    study.optimize(objective, n_trials=20)
     print("Best value: {} (params: {})\n".format(study.best_value, study.best_params))
