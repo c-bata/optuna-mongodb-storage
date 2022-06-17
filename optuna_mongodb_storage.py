@@ -93,9 +93,12 @@ class MongoDBStorage(BaseStorage):
     def set_study_directions(
         self, study_id: int, directions: Sequence[StudyDirection]
     ) -> None:
+        directions = list(directions)
         self._check_study_id(study_id)
         study_record = self._get_study_record(study_id)
-        current_directions = study_record["directions"]
+        current_directions = [
+            _str_to_study_direction_map[d] for d in study_record["directions"]
+        ]
         if (
             current_directions[0] != StudyDirection.NOT_SET
             and current_directions != directions
@@ -105,7 +108,9 @@ class MongoDBStorage(BaseStorage):
                     current_directions, directions
                 )
             )
-        study_record["directions"] = list(directions)
+        study_record["directions"] = [
+            _study_direction_to_str_map[d] for d in directions
+        ]
         self._study_table.replace_one({"study_id": study_id}, study_record)
 
     def _get_study_record(self, study_id: int) -> Dict[str, Any]:
