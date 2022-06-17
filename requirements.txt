@@ -3,3 +3,4 @@ pymongo
 sklearn
 torch
 torchvision
+pytest

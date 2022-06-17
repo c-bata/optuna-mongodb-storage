@@ -201,7 +201,9 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
             "number": trial.number,
             "state": _trial_state_to_str_map[trial.state],
             "params": trial.params,
-            "distributions": trial.distributions,
+            "distributions": {
+                k: distribution_to_json(v) for k, v in trial.distributions
+            },
             "user_attrs": trial.user_attrs,
             "system_attrs": trial.system_attrs,
             "values": trial.values,
