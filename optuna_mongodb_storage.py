@@ -94,7 +94,7 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
         return study_id
 
     def _check_study_id(self, study_id: int) -> None:
-        if self._study_table.count_documents({"study_id": study_id}) != 1:
+        if self._study_table.count_documents({"$and" : [{"study_id": study_id}, {"deleted": False}]}) != 1:
             raise KeyError("study_id {} does not exist.".format(study_id))
 
     def delete_study(self, study_id: int) -> None:
@@ -202,7 +202,7 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
             "state": _trial_state_to_str_map[trial.state],
             "params": trial.params,
             "distributions": {
-                k: distribution_to_json(v) for k, v in trial.distributions
+                k: distribution_to_json(v) for k, v in trial.distributions.items()
             },
             "user_attrs": trial.user_attrs,
             "system_attrs": trial.system_attrs,
