@@ -1,6 +1,5 @@
 import optuna
 from optuna.samplers import RandomSampler
-
 from optuna_mongodb_storage import MongoDBStorage
 
 
@@ -17,5 +16,5 @@ if __name__ == "__main__":
 
     study = optuna.create_study(storage=storage, sampler=RandomSampler())
 
-    study.optimize(objective, n_trials=1)
+    study.optimize(objective, n_trials=2)
     print("Best value: {} (params: {})\n".format(study.best_value, study.best_params))

@@ -231,7 +231,7 @@ class MongoDBStorage(BaseStorage):
         self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
     ) -> bool:
 
-        self._check_study_id(trial_id)
+        self._check_trial_id(trial_id)
         trial_record = self._get_trial_record(trial_id)
         current_state = _str_to_trial_state_map[trial_record["state"]]
         self.check_trial_is_updatable(trial_id, current_state)
@@ -307,7 +307,14 @@ class MongoDBStorage(BaseStorage):
         states: Optional[Container[TrialState]] = None,
     ) -> List[FrozenTrial]:
 
-        trial_records = self._trial_table.find({"study_id": study_id})
+        if states is None:
+            trial_records = self._trial_table.find({"study_id": study_id})
+        else :
+            if len(states) == 1:
+                cond = {"state": _trial_state_to_str_map[states[0]]}
+            else:
+                cond = {"$or": [{"state": _trial_state_to_str_map[s]} for s in states]}
+            trial_records = self._trial_table.find({"$and": [{"study_id": study_id}, cond]})
         trials = [self._convert_record_to_frozen_trial(t) for t in trial_records]
         return trials
 
