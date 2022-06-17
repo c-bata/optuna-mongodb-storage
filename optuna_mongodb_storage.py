@@ -1,5 +1,16 @@
 import datetime
-from typing import Any, Container, Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import (
+    Any,
+    Container,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+    Callable,
+)
 
 import optuna
 from optuna import exceptions
@@ -9,6 +20,7 @@ from optuna.distributions import (
     json_to_distribution,
 )
 from optuna.storages import BaseStorage
+from optuna.storages._heartbeat import BaseHeartbeat
 from optuna.storages._base import DEFAULT_STUDY_NAME_PREFIX
 from optuna.study import StudyDirection, StudySummary
 from optuna.trial import FrozenTrial, TrialState
@@ -33,12 +45,25 @@ _str_to_trial_state_map: Dict[str, TrialState] = {
 _trial_state_to_str_map = {v: k for k, v in _str_to_trial_state_map.items()}
 
 
-class MongoDBStorage(BaseStorage):
-    def __init__(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
+class MongoDBStorage(BaseStorage, BaseHeartbeat):
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        heartbeat_interval: Optional[int] = None,
+        grace_period: Optional[int] = None,
+        failed_trial_callback: Optional[
+            Callable[["optuna.Study", FrozenTrial], None]
+        ] = None,
+    ) -> None:
         self._client = MongoClient(host=host, port=port)
         self._mongodb = self._client.optuna_study_database
         self._study_table = self._mongodb.studies
         self._trial_table = self._mongodb.trials
+
+        self.heartbeat_interval = heartbeat_interval
+        self.grace_period = grace_period
+        self.failed_trial_callback = failed_trial_callback
 
     def create_new_study(self, study_name: Optional[str] = None) -> int:
         if (
@@ -183,6 +208,7 @@ class MongoDBStorage(BaseStorage):
             "intermediate_values": trial.intermediate_values,
             "datetime_start": trial.datetime_start,
             "datetime_complete": trial.datetime_complete,
+            "heartbeat": None,
         }
 
     def create_new_trial(
@@ -202,6 +228,7 @@ class MongoDBStorage(BaseStorage):
                 "intermediate_values": {},
                 "datetime_start": datetime.datetime.now(),
                 "datetime_complete": None,
+                "heartbeat": None,
             }
         else:
             default_trial_record = self._convert_frozen_trial_to_record(
@@ -405,3 +432,47 @@ class MongoDBStorage(BaseStorage):
 
     def is_heartbeat_enabled(self) -> bool:
         return super().is_heartbeat_enabled()
+
+    def record_heartbeat(self, trial_id: int) -> None:
+        self._check_trial_id(trial_id)
+        trial_record = self._get_trial_record(trial_id)
+        trial_record["heartbeat"] = self._trial_table.command("serverStatus")[
+            "localTime"
+        ]
+        self._trial_table.replace_one({"trial_id": trial_id}, trial_record)
+
+    def _get_stale_trial_ids(self, study_id: int) -> List[int]:
+        assert self.get_heartbeat_interval() is not None
+
+        if self.grace_period is None:
+            grace_period = 2 * self.heartbeat_interval
+        else:
+            grace_period = self.grace_period
+
+        stale_trial_ids = []
+
+        running_trial_records = self._trial_table.find(
+            {
+                "$and": [
+                    {"study_id": study_id},
+                    {"state": _trial_state_to_str_map[TrialState.RUNNING]},
+                ]
+            }
+        )
+
+        current_time = self._trial_table.command("serverStatus")["localTime"]
+
+        for trial_record in running_trial_records:
+            last_heartbeat = trial_record["heartbeat"]
+            if (current_time - last_heartbeat).total_seconds() > grace_period:
+                stale_trial_ids.append(trial_record["trial_id"])
+
+        return stale_trial_ids
+
+    def get_heartbeat_interval(self) -> Optional[int]:
+        return self.heartbeat_interval
+
+    def get_failed_trial_callback(
+        self,
+    ) -> Optional[Callable[["optuna.Study", FrozenTrial], None]]:
+        return self.failed_trial_callback
