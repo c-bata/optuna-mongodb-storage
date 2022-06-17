@@ -1,5 +1,5 @@
 import datetime
-from typing import Optional, Container, List, Any, Sequence, Dict
+from typing import Any, Container, Dict, List, Optional, Sequence, Tuple, Union, cast
 
 import optuna
 from optuna import exceptions
@@ -10,10 +10,9 @@ from optuna.distributions import (
 )
 from optuna.storages import BaseStorage
 from optuna.storages._base import DEFAULT_STUDY_NAME_PREFIX
-from optuna.study import StudySummary, StudyDirection
-from optuna.trial import TrialState, FrozenTrial
+from optuna.study import StudyDirection, StudySummary
+from optuna.trial import FrozenTrial, TrialState
 from pymongo import MongoClient
-
 
 _logger = optuna.logging.get_logger(__name__)
 
@@ -80,15 +79,34 @@ class MongoDBStorage(BaseStorage):
         )
 
     def set_study_user_attr(self, study_id: int, key: str, value: Any) -> None:
-        pass
+        self._check_study_id(study_id)
+        study_record = self._get_study_record(study_id)
+        study_record["user_attrs"][key] = value
+        self._study_table.replace_one({"study_id": study_id}, study_record)
 
     def set_study_system_attr(self, study_id: int, key: str, value: Any) -> None:
-        pass
+        self._check_study_id(study_id)
+        study_record = self._get_study_record(study_id)
+        study_record["system_attrs"][key] = value
+        self._study_table.replace_one({"study_id": study_id}, study_record)
 
     def set_study_directions(
         self, study_id: int, directions: Sequence[StudyDirection]
     ) -> None:
-        pass
+        self._check_study_id(study_id)
+        study_record = self._get_study_record(study_id)
+        current_directions = study_record["directions"]
+        if (
+            current_directions[0] != StudyDirection.NOT_SET
+            and current_directions != directions
+        ):
+            raise ValueError(
+                "Cannot overwrite study direction from {} to {}.".format(
+                    current_directions, directions
+                )
+            )
+        study_record["directions"] = list(directions)
+        self._study_table.replace_one({"study_id": study_id}, study_record)
 
     def _get_study_record(self, study_id: int) -> Dict[str, Any]:
         return self._study_table.find_one({"study_id": study_id})
@@ -96,6 +114,12 @@ class MongoDBStorage(BaseStorage):
     def _get_study_record_field(self, study_id: int, field: str) -> Any:
         self._check_study_id(study_id)
         return self._get_study_record(study_id)[field]
+
+    def get_study_id_from_name(self, study_name: str) -> int:
+        res = self._study_table.find_one({"study_name": study_name})
+        if res is None:
+            raise KeyError("No such study {}.", format(study_name))
+        return res["study_id"]
 
     def get_study_name_from_id(self, study_id: int) -> str:
         return self._get_study_record_field(study_id, "study_name")
@@ -111,12 +135,6 @@ class MongoDBStorage(BaseStorage):
 
     def get_study_system_attrs(self, study_id: int) -> Dict[str, Any]:
         return self._get_study_record_field(study_id, "system_attrs")
-
-    def get_study_id_from_name(self, study_name: str) -> int:
-        res = self._study_table.find_one({"study_name": study_name})
-        if res is None:
-            raise KeyError("No such study {}.", format(study_name))
-        return res["study_id"]
 
     def _convert_study_record_to_summary(
         self, study_record: Dict[str, Any]
@@ -195,15 +213,6 @@ class MongoDBStorage(BaseStorage):
 
         return trial_id
 
-    def check_trial_is_updatable(self, trial_id: int, trial_state: TrialState) -> None:
-        if trial_state.is_finished():
-            trial_record = self._get_trial_record(trial_id)
-            raise RuntimeError(
-                "Trial#{} has already finished and can not be updated.".format(
-                    trial_record["number"]
-                )
-            )
-
     def set_trial_param(
         self,
         trial_id: int,
@@ -236,6 +245,12 @@ class MongoDBStorage(BaseStorage):
             )
         return trial_record["trial_id"]
 
+    def get_trial_number_from_id(self, trial_id: int) -> int:
+        raise NotImplementedError
+
+    def get_trial_param(self, trial_id: int, param_name: str) -> float:
+        raise NotImplementedError
+
     def set_trial_state_values(
         self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
     ) -> bool:
@@ -256,13 +271,13 @@ class MongoDBStorage(BaseStorage):
     def set_trial_intermediate_value(
         self, trial_id: int, step: int, intermediate_value: float
     ) -> None:
-        pass
+        raise NotImplementedError
 
     def set_trial_user_attr(self, trial_id: int, key: str, value: Any) -> None:
-        pass
+        raise NotImplementedError
 
     def set_trial_system_attr(self, trial_id: int, key: str, value: Any) -> None:
-        pass
+        raise NotImplementedError
 
     def _check_trial_id(self, trial_id: int) -> None:
         if self._trial_table.count_documents({"trial_id": trial_id}) != 1:
@@ -329,5 +344,39 @@ class MongoDBStorage(BaseStorage):
         trials = [self._convert_record_to_frozen_trial(t) for t in trial_records]
         return trials
 
+    def get_n_trials(
+        self,
+        study_id: int,
+        state: Optional[Union[Tuple[TrialState, ...], TrialState]] = None,
+    ) -> int:
+        raise NotImplementedError
+
+    def get_best_trial(self, study_id: int) -> FrozenTrial:
+        raise NotImplementedError
+
+    def get_trial_params(self, trial_id: int) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    def get_trial_user_attrs(self, trial_id: int) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    def get_trial_system_attrs(self, trial_id: int) -> Dict[str, Any]:
+        raise NotImplementedError
+
     def read_trials_from_remote_storage(self, study_id: int) -> None:
-        pass
+        raise NotImplementedError
+
+    def remove_session(self) -> None:
+        raise NotImplementedError
+
+    def check_trial_is_updatable(self, trial_id: int, trial_state: TrialState) -> None:
+        if trial_state.is_finished():
+            trial_record = self._get_trial_record(trial_id)
+            raise RuntimeError(
+                "Trial#{} has already finished and can not be updated.".format(
+                    trial_record["number"]
+                )
+            )
+
+    def is_heartbeat_enabled(self) -> bool:
+        raise NotImplementedError
