@@ -45,6 +45,18 @@ _str_to_trial_state_map: Dict[str, TrialState] = {
 _trial_state_to_str_map = {v: k for k, v in _str_to_trial_state_map.items()}
 
 
+def _datetime_to_str(time):
+    if time is None:
+        return None
+    return str(time)
+
+
+def _str_to_datetime(dt_str):
+    if dt_str is None:
+        return None
+    return datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S.%f")
+
+
 class MongoDBStorage(BaseStorage, BaseHeartbeat):
     def __init__(
         self,
@@ -84,7 +96,7 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
             "system_attrs": {},
             "study_id": study_id,
             "deleted": False,
-            "datetime_start": datetime.datetime.now(),
+            "datetime_start": _datetime_to_str(datetime.datetime.now()),
         }
 
         self._study_table.insert_one(default_study_record)
@@ -94,7 +106,12 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
         return study_id
 
     def _check_study_id(self, study_id: int) -> None:
-        if self._study_table.count_documents({"$and" : [{"study_id": study_id}, {"deleted": False}]}) != 1:
+        if (
+            self._study_table.count_documents(
+                {"$and": [{"study_id": study_id}, {"deleted": False}]}
+            )
+            != 1
+        ):
             raise KeyError("study_id {} does not exist.".format(study_id))
 
     def delete_study(self, study_id: int) -> None:
@@ -176,7 +193,7 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
             user_attrs=study_record["user_attrs"],
             system_attrs=study_record["system_attrs"],
             n_trials=0,
-            datetime_start=study_record["datetime_start"],
+            datetime_start=_str_to_datetime(study_record["datetime_start"]),
             study_id=study_record["study_id"],
             directions=[
                 _str_to_study_direction_map[d] for d in study_record["directions"]
@@ -207,9 +224,11 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
             "user_attrs": trial.user_attrs,
             "system_attrs": trial.system_attrs,
             "values": trial.values,
-            "intermediate_values": trial.intermediate_values,
-            "datetime_start": trial.datetime_start,
-            "datetime_complete": trial.datetime_complete,
+            "intermediate_values": {
+                str(k): v for k, v in trial.intermediate_values.items()
+            },
+            "datetime_start": _datetime_to_str(trial.datetime_start),
+            "datetime_complete": _datetime_to_str(trial.datetime_complete),
             "heartbeat": None,
         }
 
@@ -226,9 +245,9 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
                 "distributions": {},
                 "user_attrs": {},
                 "system_attrs": {},
-                "values": [],
+                "values": None,
                 "intermediate_values": {},
-                "datetime_start": datetime.datetime.now(),
+                "datetime_start": _datetime_to_str(datetime.datetime.now()),
                 "datetime_complete": None,
                 "heartbeat": None,
             }
@@ -236,7 +255,6 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
             default_trial_record = self._convert_frozen_trial_to_record(
                 study_id, template_trial
             )
-
         self._check_study_id(study_id)
         trial_id = self._trial_table.count_documents({})
         trial_number = self._trial_table.count_documents({"study_id": study_id})
@@ -365,8 +383,8 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
                 int(key): value
                 for key, value in trial_record["intermediate_values"].items()
             },
-            datetime_start=trial_record["datetime_start"],
-            datetime_complete=trial_record["datetime_complete"],
+            datetime_start=_str_to_datetime(trial_record["datetime_start"]),
+            datetime_complete=_str_to_datetime(trial_record["datetime_complete"]),
         )
 
     def get_trial(self, trial_id: int) -> FrozenTrial:
