@@ -401,6 +401,8 @@ class MongoDBStorage(BaseStorage, BaseHeartbeat):
 
         if states is None:
             trial_records = self._trial_table.find({"study_id": study_id})
+        elif len(states) == 0:
+            return []
         else:
             if len(states) == 1:
                 cond = {"state": _trial_state_to_str_map[states[0]]}
